@@ -150,8 +150,8 @@
 
             var p = svgNode.node.createSVGPoint();
 
-            p.x = event.clientX;
-            p.y = event.clientY;
+            p.x =event.layerX || event.clientX;
+            p.y = event.layerY || event.clientY;
 
             return p;
         };
@@ -372,12 +372,89 @@
 
                 zpdElement.data.stateTf = zpdElement.data.stateTf.multiply(k.inverse());
             };
+            
+                        //add touch events here
+            var startDistance = 0;
+
+            var handleTouchStart = function handleTouchStart (event) {
+                //event.preventDefault();
+               // event.returnValue = false;
+
+                var g = zpdElement.element.node;
+                zpdElement.data.state = 'pan';
+                zpdElement.data.stateTf = g.getCTM().inverse();
+                zpdElement.data.stateOrigin = _getEventPoint(event.targetTouches[0], zpdElement.data.svg).matrixTransform(zpdElement.data.stateTf);
+                if (event.targetTouches.length == 2) { //pinch
+                    var p1 = event.targetTouches[0];
+                    var p2 = event.targetTouches[1];
+                    startDistance = Math.sqrt(Math.pow(p2.pageX - p1.pageX, 2) + Math.pow(p2.pageY - p1.pageY, 2)); //euclidian distance
+                }
+            };
+
+            var handleTouchMove = function handleTouchMove(event) {
+                event.preventDefault();
+                if (event.targetTouches.length == 2) { //pinch
+                    gesturePinchZoom(event);
+                }
+                else if (event.targetTouches.length == 1) {
+                    var g = zpdElement.element.node;
+                    var p = _getEventPoint(event.targetTouches[0], zpdElement.data.svg).matrixTransform(zpdElement.data.stateTf);
+                        _setCTM(g, zpdElement.data.stateTf.inverse().translate(p.x - zpdElement.data.stateOrigin.x, p.y - zpdElement.data.stateOrigin.y));                    
+                }
+            };
+
+            var handleTouchEnd = function handleTouchEnd(e) {
+
+                //e.preventDefault();
+                if (zpdElement.data.state == 'pan' || zpdElement.data.state == 'drag') {
+                    zpdElement.data.state = '';
+                }
+                startDistance = 0;
+            };
+
+            var gesturePinchZoom = function (event) {
+                if (event.targetTouches.length >= 2) {
+
+                    var p1 = event.targetTouches[0];
+                    var p2 = event.targetTouches[1];
+                    var dist = Math.sqrt(Math.pow(p2.pageX - p1.pageX, 2) + Math.pow(p2.pageY - p1.pageY, 2)); //euclidian distance
+                    if (startDistance) {
+
+                        var z = 1
+                        if (dist > startDistance) {
+                            z = 1.05;
+                        } else if (dist < startDistance) {
+                            z = .95
+                        }
+
+                        var g = zpdElement.element.node;
+
+                        var p = _getEventPoint(event.targetTouches[0], zpdElement.data.svg);
+
+                        p = p.matrixTransform(g.getCTM().inverse());
+
+                        // Compute new scale matrix in current mouse position
+                        var k = zpdElement.data.root.createSVGMatrix().translate(p.x, p.y).scale(z).translate(-p.x, -p.y);
+
+                        _setCTM(g, g.getCTM().multiply(k), zpdElement.options.zoomThreshold);
+
+                        if (typeof (stateTf) == 'undefined') {
+                            zpdElement.data.stateTf = g.getCTM().inverse();
+                        }
+
+                        zpdElement.data.stateTf = zpdElement.data.stateTf.multiply(k.inverse());
+                    }
+                }
+            };
 
             return {
                 "mouseUp": handleMouseUp,
                 "mouseDown": handleMouseDown,
                 "mouseMove": handleMouseMove,
-                "mouseWheel": handleMouseWheel
+                "mouseWheel": handleMouseWheel,
+                "touchStart": handleTouchStart,
+                "touchMove": handleTouchMove,
+                "touchEnd": handleTouchEnd
             };
         };
 
@@ -390,7 +467,9 @@
 
             // mobile
             // (?)
-
+            svgElement.addEventListener('touchstart', handlerFunctions.touchStart, false);
+            svgElement.addEventListener('touchmove', handlerFunctions.touchMove, false);
+            svgElement.addEventListener('touchend', handlerFunctions.touchEnd, false);
             // desktop
             if ('onmouseup' in document.documentElement) {
 
@@ -426,6 +505,10 @@
             else {
                 svgElement.removeEventListener('DOMMouseScroll', handlerFunctions.mouseWheel, false);
             }
+            
+            svgElement.removeEventListener('touchstart', handlerFunctions.touchStart, false);
+            svgElement.removeEventListener('touchmove', handlerFunctions.touchMove, false);
+            svgElement.removeEventListener('touchend', handlerFunctions.touchEnd, false);
         };
 
         /* our global zpd function */
