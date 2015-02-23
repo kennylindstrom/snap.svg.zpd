@@ -422,27 +422,29 @@
 
                         var z = 1
                         if (dist > startDistance) {
-                            z = 1.05;
+                            z = 1.01;
                         } else if (dist < startDistance) {
-                            z = .95
+                            z = .99
                         }
+                        if (z != 1) {
+                            var g = zpdElement.element.node;
 
-                        var g = zpdElement.element.node;
+                            var p = _getEventPoint(event.targetTouches[0], zpdElement.data.svg);
 
-                        var p = _getEventPoint(event.targetTouches[0], zpdElement.data.svg);
+                            p = p.matrixTransform(g.getCTM().inverse());
 
-                        p = p.matrixTransform(g.getCTM().inverse());
+                            // Compute new scale matrix in current mouse position
+                            var k = zpdElement.data.root.createSVGMatrix().translate(p.x, p.y).scale(z).translate(-p.x, -p.y);
 
-                        // Compute new scale matrix in current mouse position
-                        var k = zpdElement.data.root.createSVGMatrix().translate(p.x, p.y).scale(z).translate(-p.x, -p.y);
+                            _setCTM(g, g.getCTM().multiply(k), zpdElement.options.zoomThreshold);
 
-                        _setCTM(g, g.getCTM().multiply(k), zpdElement.options.zoomThreshold);
+                            if (typeof (stateTf) == 'undefined') {
+                                zpdElement.data.stateTf = g.getCTM().inverse();
+                            }
 
-                        if (typeof (stateTf) == 'undefined') {
-                            zpdElement.data.stateTf = g.getCTM().inverse();
+                            zpdElement.data.stateTf = zpdElement.data.stateTf.multiply(k.inverse());
                         }
-
-                        zpdElement.data.stateTf = zpdElement.data.stateTf.multiply(k.inverse());
+                        startDistance = dist;
                     }
                 }
             };
